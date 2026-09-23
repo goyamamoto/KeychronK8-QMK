@@ -1,26 +1,47 @@
 # QMK for the Keychron K8, with Bluetooth
 
-This repository is [SonixQMK](https://github.com/SonixQMK/qmk_firmware)
-(`sn32_develop` at commit `b7b245d0`) plus changes for the original Keychron K8
-with RGB backlight (SN32F248B). The QMK tree is large, but only these paths
-differ from SonixQMK; everything else is upstream code, unchanged:
+QMK firmware for the original Keychron K8 with RGB backlight, built on
+[SonixQMK](https://github.com/SonixQMK/qmk_firmware). Unlike SonixQMK's K8
+firmware, it keeps the K8's Bluetooth.
+
+## What it does
+
+- **Bluetooth**: three host profiles, pairing, battery level, link indicators
+- **US-JIS** (optional keymap): a US keyboard types as printed on a host set to
+  the Japanese layout, with IME keys beside Space and Caps Lock/Ctrl swapped
+- **VIA** (optional keymap): change keys without rebuilding
+- **Flashing from stock firmware** without opening the case
+
+Supported: the K8 with RGB backlight (ANSI, ISO, Optical). Not the
+white-backlight K8 or the K8 Pro.
+
+## How to use it
+
+Follow the [Keychron K8 QMK guide](keyboards/keychron/k8/readme.md):
+
+1. [Choose a firmware](keyboards/keychron/k8/readme.md#1-choose-a-firmware)
+2. [Install the tools](keyboards/keychron/k8/readme.md#2-install-the-tools)
+3. [Get the source and the stock images](keyboards/keychron/k8/readme.md#3-get-the-source-and-the-stock-images)
+4. [Build](keyboards/keychron/k8/readme.md#4-build)
+5. [Flash](keyboards/keychron/k8/readme.md#5-flash)
+6. [Use it](keyboards/keychron/k8/readme.md#6-use-it)
+7. [Go back to stock firmware](keyboards/keychron/k8/readme.md#7-go-back-to-stock-firmware)
+
+## What differs from SonixQMK
+
+The QMK tree is large, but only these paths differ from SonixQMK
+(`sn32_develop` at commit `b7b245d0`); everything else is upstream code,
+unchanged:
 
 | Path | What changed |
 |---|---|
-| [`keyboards/keychron/k8/`](keyboards/keychron/k8/) | Bluetooth through the K8's ITON module, keymaps (`usjis` adds a US-JIS mode, IME keys beside Space and a Caps Lock/Ctrl swap; `ansi_via` and `usjis_via` add VIA), readme |
-| [`keyboards/keychron/k8/flash/`](keyboards/keychron/k8/flash/) | A patch and build script for SonixFlasherC on macOS, and a flash script with safety checks |
-| [`keyboards/keychron/k8/re/`](keyboards/keychron/k8/re/) | Notes on the stock firmware's Bluetooth protocol and Keychron's updaters, scripts to fetch and disassemble stock images |
-| [`keyboards/keychron/k8/debug/`](keyboards/keychron/k8/debug/) | A reader for the Bluetooth debug console |
-| [`drivers/bluetooth/iton_bt.c`](drivers/bluetooth/iton_bt.c), [`iton_bt.h`](drivers/bluetooth/iton_bt.h), [`bluetooth_drivers.c`](drivers/bluetooth/bluetooth_drivers.c) | Fixes to the ITON driver (send timeout, keyboard LEDs and system keys over Bluetooth, a bounds check), an SN32 line interrupt that saves RAM, and an opt-in debug log |
-| [`quantum/via.c`](quantum/via.c), [`via.h`](quantum/via.h) | VIA protocol 13 from upstream QMK (#26001), so VIA offers the RGB matrix keycodes (`RM_*`) in its key picker |
+| [`keyboards/keychron/k8/`](keyboards/keychron/k8/) | The K8: Bluetooth control, keymaps, US-JIS, flash and analysis tools, the guide |
+| [`drivers/bluetooth/iton_bt.c`](drivers/bluetooth/iton_bt.c), [`iton_bt.h`](drivers/bluetooth/iton_bt.h), [`bluetooth_drivers.c`](drivers/bluetooth/bluetooth_drivers.c) | Fixes to the Bluetooth module driver, an SN32 line interrupt that saves RAM, an opt-in debug log |
+| [`quantum/via.c`](quantum/via.c), [`via.h`](quantum/via.h) | VIA protocol 13 from upstream QMK (#26001), so VIA offers the RGB matrix keycodes |
 | `readme.md` | This section |
 
 [All changes against SonixQMK](https://github.com/goyamamoto/KeychronK8-QMK/compare/b7b245d014721f727f0f8f701026939468f4c916...main)
-on GitHub. In a clone, `git diff --stat b7b245d0 HEAD` lists the same files.
-
-Start with [`keyboards/keychron/k8/readme.md`](keyboards/keychron/k8/readme.md):
-building, flashing (also from stock firmware without opening the case), going
-back to stock, and what has been tested on hardware.
+on GitHub; in a clone, `git diff --stat b7b245d0 HEAD`.
 
 The rest of this file is QMK's own README.
 

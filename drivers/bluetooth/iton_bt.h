@@ -93,6 +93,18 @@ enum iton_bt_notification_param {
 /**
  * Exported Variables
  */
+#ifdef ITON_BT_DEBUG
+// Link event log for bring-up: T = packet queued, D = SPI transfer finished,
+// X = packet dropped after ITON_BT_SEND_TIMEOUT, R = packet received.
+#    define ITON_BT_LOG_LEN 16
+typedef struct {
+    uint16_t time;
+    char     type;
+    uint8_t  data[3];
+} iton_bt_event_t;
+extern volatile iton_bt_event_t iton_bt_log[ITON_BT_LOG_LEN];
+extern volatile uint8_t         iton_bt_log_head;
+#endif
 #ifdef ITON_BT_ENABLE_LED_STATE
 uint8_t iton_bt_led_state;
 #endif

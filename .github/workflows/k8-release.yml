@@ -1,0 +1,77 @@
+name: K8 release
+
+# Push a tag named QMK-K8BLE-v<version> on main to publish the release images.
+on:
+  push:
+    tags: ['QMK-K8BLE-v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    uses: ./.github/workflows/k8-ci.yml
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: k8-firmware
+          path: dist
+      - name: Source archive
+        # The complete corresponding source (GPL-2.0): this tree and the
+        # submodules compiled into the images.
+        run: |
+          prefix="${TAG}"
+          src="dist/${prefix}-source.tar"
+          git archive --prefix="${prefix}/" -o "$src" HEAD
+          for m in lib/chibios lib/chibios-contrib lib/printf; do
+              git -C "$m" archive --prefix="${prefix}/${m}/" -o "$PWD/sub.tar" HEAD
+              tar --concatenate -f "$src" sub.tar
+          done
+          rm sub.tar
+          gzip -9 "$src"
+          (cd dist && sha256sum "${prefix}-source.tar.gz" "${TAG}.spdx.json" >> SHA256SUMS)
+        env:
+          TAG: ${{ github.ref_name }}
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.bin
+            dist/*.spdx.json
+            dist/*-source.tar.gz
+      - name: Create the release
+        run: |
+          cat > notes.md <<NOTES
+          Release images for the Keychron K8 with RGB backlight, built by
+          [this workflow run](${RUN_URL}) from ${GITHUB_SHA}.
+
+          Pick the file for your board and keymap as described in
+          [1. Choose a firmware](${REPO_URL}/blob/${TAG}/keyboards/keychron/k8/readme.md#1-choose-a-firmware)
+          and flash it as in
+          [5. Flash](${REPO_URL}/blob/${TAG}/keyboards/keychron/k8/readme.md#5-flash).
+          The images have no debug console and no debug log. Only the ANSI
+          board has been tested on hardware; see
+          [9. Tested and not tested](${REPO_URL}/blob/${TAG}/keyboards/keychron/k8/readme.md#9-tested-and-not-tested).
+
+          Check a download with \`sha256sum -c SHA256SUMS --ignore-missing\` or
+          \`gh attestation verify <file> -R ${GITHUB_REPOSITORY}\`.
+          The SBOM is in SPDX 2.3 JSON. The source archive holds this tree and
+          the submodules compiled into the images.
+          NOTES
+          gh release create "$TAG" dist/* --verify-tag --title "$TAG" --notes-file notes.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

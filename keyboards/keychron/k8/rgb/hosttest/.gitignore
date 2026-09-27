@@ -1,0 +1,3 @@
+build/
+# QMK ignores keyboards/**/Makefile; this one is a plain host build.
+!Makefile

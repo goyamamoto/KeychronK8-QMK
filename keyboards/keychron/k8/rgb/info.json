@@ -5,6 +5,12 @@
     "maintainer": "tbowmo",
     "debounce": 1,
     "development_board": "sn32f240b_shared_matrix",
+    "keycodes": [
+        {"key": "K8_BATT"},
+        {"key": "USJIS_TOGGLE", "aliases": ["UJ_TOGG"]},
+        {"key": "USJIS_ON", "aliases": ["UJ_ON"]},
+        {"key": "USJIS_OFF", "aliases": ["UJ_OFF"]}
+    ],
     "diode_direction": "COL2ROW",
     "features": {
         "rgb_matrix": true,
@@ -33,7 +39,6 @@
             "cycle_pinwheel" : true,
             "cycle_spiral" : true,
             "cycle_up_down" : true,
-            "digital_rain" : true,
             "dual_beacon" : true,
             "gradient_left_right" : true,
             "gradient_up_down" : true,
@@ -60,7 +65,6 @@
             "solid_reactive_wide" : true,
             "solid_splash" : true,
             "splash" : true,
-            "typing_heatmap" : true,
         },
         "driver": "sn32f2xx",
         "react_on_keyup": true,

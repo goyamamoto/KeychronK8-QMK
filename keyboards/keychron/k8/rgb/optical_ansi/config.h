@@ -17,3 +17,7 @@
 
 // RGB Matrix Config
 #define RGB_MATRIX_LED_COUNT 87
+
+// Sleep drives every key column high; not checked against the optical
+// switches' emitters, so it stays off.
+#define K8_BT_SLEEP_TIMEOUT 0

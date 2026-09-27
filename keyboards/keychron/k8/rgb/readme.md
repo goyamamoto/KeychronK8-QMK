@@ -1,16 +1,15 @@
-# Keychron K8
+# Keychron K8 RGB
 
-K8 Gateron Hotswap RGB
+The original Keychron K8 with RGB backlight (SN32F248B MCU), with Bluetooth
+through its ITON module.
 
-Make example for this keyboard (after setting up your build environment):
+* Hardware supported: K8 RGB in ANSI, ISO, Optical ANSI and Optical ISO
+* Keymaps: `ansi`, `usjis`, `ansi_via`, `usjis_via`, `iso`
 
-    make keychron/k8/rgb/ansi:ansi
+Make example:
 
-For default ISO:
+    make keychron/k8/rgb/ansi:usjis_via
 
-    make keychron/k8/rgb/iso:iso
-    
-* * *
-For more info and detailed flashing instructions, please visit https://github.com/alex-dinh/keychron-k8
-
-See the [build environment setup](https://docs.qmk.fm/#/getting_started_build_tools) and the [make instructions](https://docs.qmk.fm/#/getting_started_make_guide) for more information. Brand new to QMK? Start with our [Complete Newbs Guide](https://docs.qmk.fm/#/newbs).
+Choosing a keymap, building, flashing (also from stock firmware), using
+Bluetooth, US-JIS and VIA, and going back to stock are in the
+[Keychron K8 QMK guide](../readme.md).

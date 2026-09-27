@@ -1,0 +1,48 @@
+name: K8 CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  hosttest:
+    name: US-JIS host tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: make -C keyboards/keychron/k8/rgb/hosttest
+
+  build:
+    name: Build release images
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/qmk/qmk_cli@sha256:b7d7fa8fb4432b569931de5ad59098cb788f440ed61a62c5126746b71aee0f4a
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+      - name: Build
+        run: |
+          git config --global --add safe.directory '*'
+          keyboards/keychron/k8/release/build_all.sh dist
+      - name: SBOM
+        run: |
+          keyboards/keychron/k8/release/sbom.py dist "${VERSION}" \
+              ghcr.io/qmk/qmk_cli@sha256:b7d7fa8fb4432b569931de5ad59098cb788f440ed61a62c5126746b71aee0f4a
+        env:
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('QMK-K8BLE-{0}', github.sha) }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: k8-firmware
+          path: dist/
+          if-no-files-found: error

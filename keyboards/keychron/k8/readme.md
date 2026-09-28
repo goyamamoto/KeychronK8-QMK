@@ -249,6 +249,14 @@ Tested on an ANSI RGB K8 (stock USB ID `05AC:024F`):
   whether Caps Lock or another key wakes it. Once, in an earlier test of the
   same code, the LED stayed on after the Mac had turned Caps Lock off
 
+Checked in the emulator ([`sim/renode/`](sim/renode/), no keyboard needed;
+the Bluetooth module is a model there): the start-up sequence, connection,
+typing including six keys and the volume key, the Caps Lock LED from the
+host, battery query and low-battery flag, pairing, profile switching,
+switching between cable and Bluetooth, recovery from a module that stops
+answering, and sleep and wake. It also shows that Bluetooth typing goes on
+while USB is suspended.
+
 Not tested:
 
 - Sleep: the battery life, and the 10-minute idle time of the release images
@@ -262,6 +270,11 @@ Not tested:
 Limitations:
 
 - There is no VIA keymap for ISO.
+- Only keys wake the keyboard from sleep, so a Caps Lock change the host
+  sends while it sleeps can be missed and the LED stays as it was until the
+  next change. The emulator shows this (a `KNOWN` line) under the assumption
+  that the module does not send the change again; it may be what the
+  hardware test above saw once.
 
 ## 10. For developers
 
@@ -269,6 +282,7 @@ Limitations:
 |---|---|
 | [`rgb/`](rgb/) | The keyboard: `rgb.c` (Bluetooth control, indicators, US-JIS hooks), `sleep.c` (deep sleep on Bluetooth), `usjis.c`, keymaps, HAL configuration |
 | [`rgb/hosttest/`](rgb/hosttest/) | Host tests for `usjis.c`: `make -C keyboards/keychron/k8/rgb/hosttest` |
+| [`sim/renode/`](sim/renode/) | The firmware on an emulated SN32F248B with a model Bluetooth module (Renode): Bluetooth and sleep tests, see its README |
 | [`flash/`](flash/) | `build_flasher.sh`, the SonixFlasherC patch, `flash_k8.py`, `fetch_stock.sh` and `extract_official.py` for the stock images |
 | [`debug/`](debug/) | The console reader for the debug build |
 | [`release/`](release/) | `build_all.sh` (every release image, a check that none has the debug console or log, `SHA256SUMS`) and `sbom.py` (SPDX SBOM); the GitHub workflows in `.github/workflows/k8-*.yml` run them; pushing a tag `QMK-K8BLE-v<version>` publishes a release |

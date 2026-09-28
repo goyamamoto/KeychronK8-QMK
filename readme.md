@@ -35,10 +35,10 @@ unchanged:
 
 | Path | What changed |
 |---|---|
-| [`keyboards/keychron/k8/`](keyboards/keychron/k8/) | The K8: Bluetooth control, sleep, keymaps, US-JIS, flash tools, the guide |
+| [`keyboards/keychron/k8/`](keyboards/keychron/k8/) | The K8: Bluetooth control, sleep, keymaps, US-JIS, flash tools, tests and the emulator, the guide |
 | [`drivers/bluetooth/iton_bt.c`](drivers/bluetooth/iton_bt.c), [`iton_bt.h`](drivers/bluetooth/iton_bt.h), [`bluetooth_drivers.c`](drivers/bluetooth/bluetooth_drivers.c) | Fixes to the Bluetooth module driver, an SN32 line interrupt that saves RAM, an opt-in debug log |
 | [`quantum/via.c`](quantum/via.c), [`via.h`](quantum/via.h) | VIA protocol 13 from upstream QMK (#26001), so VIA offers the RGB matrix keycodes |
-| [`.github/`](.github/) | This repository's workflows (build, host tests, CodeQL, releases) and Dependabot, in place of QMK's |
+| [`.github/`](.github/) | This repository's workflows (build, host tests, emulator tests, CodeQL, releases) and Dependabot, in place of QMK's |
 | `readme.md` | This section |
 
 [All changes against SonixQMK](https://github.com/goyamamoto/KeychronK8-QMK/compare/b7b245d014721f727f0f8f701026939468f4c916...main)

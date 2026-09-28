@@ -21,6 +21,38 @@ jobs:
           persist-credentials: false
       - run: make -C keyboards/keychron/k8/rgb/hosttest
 
+  emulator:
+    name: Emulator tests
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/qmk/qmk_cli@sha256:b7d7fa8fb4432b569931de5ad59098cb788f440ed61a62c5126746b71aee0f4a
+    env:
+      RENODE_URL: https://github.com/renode/renode/releases/download/v1.17.0/renode-1.17.0.linux-portable.tar.gz
+      RENODE_SHA256: 4ba7c68b59e2447f188ef4b4b112fcccd2802582c460beedceb63b84e5605a5f
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+      - name: Build the emulation image
+        run: |
+          git config --global --add safe.directory '*'
+          keyboards/keychron/k8/sim/renode/build.sh
+      - name: Install Renode
+        run: |
+          curl -sSLo /tmp/renode.tar.gz "$RENODE_URL"
+          echo "$RENODE_SHA256  /tmp/renode.tar.gz" | sha256sum -c -
+          mkdir -p /opt/renode
+          tar xzf /tmp/renode.tar.gz -C /opt/renode --strip-components=1
+      - name: Run
+        run: RENODE=/opt/renode/renode keyboards/keychron/k8/sim/renode/run.sh .build/keychron_k8_rgb_ansi_ansi_renode.elf
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: emulator-log
+          path: keyboards/keychron/k8/sim/renode/out/tests.log
+          if-no-files-found: ignore
+
   build:
     name: Build release images
     runs-on: ubuntu-24.04

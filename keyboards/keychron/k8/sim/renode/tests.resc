@@ -1,0 +1,6 @@
+# The K8 regression tests: run with ./run.sh <firmware.elf>.
+include $ORIGIN/sn32.cs
+include $ORIGIN/iton.cs
+logLevel 3
+python "from System import Environment; execfile(Environment.GetEnvironmentVariable('K8_SIM_DIR') + '/tests.py')"
+quit

@@ -23,6 +23,8 @@
 
 // RGB LED Config
 #define SN32F2XX_RGB_MATRIX_ROW_PINS { C3, C1, C0, C6, C5, C4, C9, C8, C7, C12, C11, C10, B13, C14, C13, B14, B15, D3 }
+// Load each LED row's duty cycles with the PWM timer stopped, then restart it
+#define SN32F2XX_PWM_RESTART
 
 // Bluetooth module (ITON) on SPI0, request line A0, direction line A1
 #define ITON_BT_ENABLE_LED_STATE

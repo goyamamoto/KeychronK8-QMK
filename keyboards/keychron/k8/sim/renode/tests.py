@@ -105,6 +105,10 @@ def test_host_leds():
 
 def test_battery():
     k = connected_k8()
+    k.iton.SendNotification(0x5A, 0x04)
+    k.run(0.1)
+    R.check("battery: a level the module sends unasked is not shown", k.u8("battery_level") == 0,
+            str(k.u8("battery_level")))
     n = k.iton.PacketsFromMcu
     k.iton.BatteryLevel = 0x02
     k.fn_tap(KEY_B)
@@ -166,6 +170,24 @@ def test_disconnect():
     k.close()
 
 
+def test_link_changes_on_their_own():
+    k = connected_k8()
+    R.check("link: connecting after start-up is shown", k.u8("link_outcome_shown") == 1)
+    k.tap(KEY_A)
+    k.run(15.0)
+    k.tap(KEY_A)
+    k.run(15.0)
+    k.iton.HostDisconnect()
+    k.run(0.1)
+    R.check("link: a drop long after any action is not shown",
+            k.u8("bt_state") == BT_DISCONNECTED and k.u8("link_outcome_shown") == 0)
+    k.fn_tap(KEY_1)
+    k.run(1.5)
+    R.check("link: the outcome of Fn+1 is shown",
+            k.u8("bt_state") == BT_CONNECTED and k.u8("link_outcome_shown") == 1, str(k.u8("bt_state")))
+    k.close()
+
+
 def test_switch_to_cable_and_back():
     k = connected_k8()
     n = k.iton.PacketsFromMcu
@@ -214,6 +236,26 @@ def test_sleep_and_wake():
     entries = k.pmu.DeepSleepEntries
     k.run(5.0)
     R.check("sleep: idle time starts afresh after wake", k.pmu.DeepSleepEntries == entries)
+    k.close()
+
+
+def test_no_sleep_while_pairing():
+    k = K8()
+    k.run(1.0)
+    k.press(FN)
+    k.run(0.03)
+    k.press(KEY_1)
+    k.run(3.2)
+    k.release(KEY_1)
+    k.release(FN)
+    k.run(22.0)
+    R.check("sleep: not while pairing", k.pmu.DeepSleepEntries == 0 and k.u8("bt_state") == BT_PAIRING,
+            "entries=%d state=%d" % (k.pmu.DeepSleepEntries, k.u8("bt_state")))
+    k.iton.HostPair()
+    k.run(0.2)
+    R.check("sleep: pairing late still shows connected", k.u8("bt_state") == BT_CONNECTED, str(k.u8("bt_state")))
+    k.run(21.0)
+    R.check("sleep: sleeps once connected", k.pmu.DeepSleepEntries >= 1)
     k.close()
 
 
@@ -273,9 +315,11 @@ test_battery()
 test_pairing()
 test_profile_switch()
 test_disconnect()
+test_link_changes_on_their_own()
 test_switch_to_cable_and_back()
 test_unresponsive_module()
 test_sleep_and_wake()
+test_no_sleep_while_pairing()
 test_no_sleep_with_usb_host()
 test_no_sleep_on_cable()
 test_caps_change_while_asleep()

@@ -341,15 +341,7 @@ static void shared_matrix_scan_keys(matrix_row_t current_matrix[], uint8_t curre
 
 #if (SN32F2XX_PWM_DIRECTION == COL2ROW)
 
-static void shared_matrix_rgb_disable_output(void) {
-    // Disable PWM outputs on column pins
-    for (uint8_t y = 0; y < SN32F2XX_RGB_MATRIX_COLS; y++) {
-#    if (SN32F2XX_PWM_CONTROL == HARDWARE_PWM)
-        pwmDisableChannel(&PWMD1, chan_col_order[y]);
-#    elif (SN32F2XX_PWM_CONTROL == SOFTWARE_PWM)
-        gpio_set_pin_input(led_col_pins[y]);
-#    endif // SN32F2XX_PWM_CONTROL
-    }
+static void shared_matrix_rgb_disable_led_rows(void) {
     // Disable LED outputs on RGB channel pins
     for (uint8_t x = 0; x < SN32F2XX_RGB_MATRIX_ROWS_HW; x++) {
 #    if (SN32F2XX_RGB_OUTPUT_ACTIVE_LEVEL == SN32F2XX_RGB_OUTPUT_ACTIVE_HIGH)
@@ -358,6 +350,25 @@ static void shared_matrix_rgb_disable_output(void) {
         gpio_write_pin_high(led_row_pins[x]);
 #    endif // SN32F2XX_RGB_OUTPUT_ACTIVE_LEVEL
     }
+}
+
+static void shared_matrix_rgb_disable_output(void) {
+#    if defined(SN32F2XX_PWM_RESTART)
+    // Rows first: a column released to GPIO while its row is still lit is
+    // pulled low through any held key on it and flashes that LED.
+    shared_matrix_rgb_disable_led_rows();
+#    endif
+    // Disable PWM outputs on column pins
+    for (uint8_t y = 0; y < SN32F2XX_RGB_MATRIX_COLS; y++) {
+#    if (SN32F2XX_PWM_CONTROL == HARDWARE_PWM)
+        pwmDisableChannel(&PWMD1, chan_col_order[y]);
+#    elif (SN32F2XX_PWM_CONTROL == SOFTWARE_PWM)
+        gpio_set_pin_input(led_col_pins[y]);
+#    endif // SN32F2XX_PWM_CONTROL
+    }
+#    if !defined(SN32F2XX_PWM_RESTART)
+    shared_matrix_rgb_disable_led_rows();
+#    endif
 }
 
 static void update_pwm_channels(PWMDriver *pwmp) {
@@ -369,9 +380,9 @@ static void update_pwm_channels(PWMDriver *pwmp) {
     uint8_t last_key_row = current_key_row;
 #    endif // SHARED_MATRIX
     // Advance to the next key matrix row
-#    if (SN32F2XX_PWM_CONTROL == HARDWARE_PWM)
+#    if (SN32F2XX_PWM_CONTROL == HARDWARE_PWM) && !defined(SN32F2XX_PWM_RESTART)
     if (current_row % SN32F2XX_RGB_MATRIX_ROW_CHANNELS == 2) current_key_row++;
-#    elif (SN32F2XX_PWM_CONTROL == SOFTWARE_PWM)
+#    else
     if (current_row % SN32F2XX_RGB_MATRIX_ROW_CHANNELS == 0) current_key_row++;
 #    endif // SN32F2XX_PWM_CONTROL
     /* Check if counter has wrapped around, reset before the next pass */
@@ -384,17 +395,63 @@ static void update_pwm_channels(PWMDriver *pwmp) {
 #    endif // SHARED_MATRIX
     }
     bool enable_pwm_output = false;
+#    if (SN32F2XX_PWM_CONTROL == HARDWARE_PWM) && defined(SN32F2XX_PWM_RESTART)
+    // Write this row's duty cycles with the timer stopped and restart it from
+    // zero, so all of them show in the period that shows this row. Written
+    // while the timer runs, each one took effect in this period or the next
+    // depending on where the counter was, so columns showed the row before.
+    SN32_CT_PWM_SET(pwmp, config.TMRCTRL, CT16_CEN_DIS);
+    uint32_t pwmctrl[2] = {SN32_CT_PWM_GET(pwmp, pwm.PWMCTRL), SN32_CT_PWM_GET(pwmp, pwm.PWMCTRL2)};
     for (uint8_t current_key_col = 0; current_key_col < SN32F2XX_RGB_MATRIX_COLS; current_key_col++) {
         uint8_t led_index = g_led_config.matrix_co[current_key_row][current_key_col];
-#    if (SN32F2XX_PWM_CONTROL == SOFTWARE_PWM)
+        uint8_t duty      = 0;
+        if (led_index < SN32F2XX_LED_COUNT) {
+            switch (current_row % SN32F2XX_RGB_MATRIX_ROW_CHANNELS) {
+                case 0:
+                    duty = led_state[led_index].r;
+                    break;
+                case 1:
+                    duty = led_state[led_index].b;
+                    break;
+                case 2:
+                    duty = led_state[led_index].g;
+                    break;
+                default:;
+            }
+        }
+        // Every column stays driven: a column left as a GPIO input is pulled
+        // low through any held key on it (the rows are pulled down), lighting
+        // that column in the lit row. A zero duty in PWM mode still flicks on
+        // at the start of each cycle, so hold those columns high (off) instead.
+        uint8_t   channel = chan_col_order[current_key_col];
+        uint32_t *ctrl    = &pwmctrl[channel > 15 ? 1 : 0];
+        *ctrl &= ~mskCT16_PWMnMODE_FORCE_1(channel);
+#        if (SN32F2XX_PWM_OUTPUT_ACTIVE_LEVEL == SN32F2XX_PWM_OUTPUT_ACTIVE_LOW)
+        *ctrl |= duty ? mskCT16_PWMnMODE_1(channel) : mskCT16_PWMnMODE_FORCE_1(channel);
+#        else
+        *ctrl |= duty ? mskCT16_PWMnMODE_2(channel) : mskCT16_PWMnMODE_FORCE_0(channel);
+#        endif
+        if (duty > 0) enable_pwm_output = true;
+        pwmEnableChannel(pwmp, channel, duty);
+    }
+    SN32_CT_PWM_SET(pwmp, pwm.PWMCTRL, pwmctrl[0]);
+    SN32_CT_PWM_SET(pwmp, pwm.PWMCTRL2, pwmctrl[1]);
+    SN32_CT_PWM_SET(pwmp, config.TMRCTRL, mskCT16_CRST);
+    while (SN32_CT_PWM_GET(pwmp, config.TMRCTRL) & mskCT16_CRST)
+        ;
+    SN32_CT_PWM_OR(pwmp, config.TMRCTRL, mskCT16_CEN_EN);
+#    else
+    for (uint8_t current_key_col = 0; current_key_col < SN32F2XX_RGB_MATRIX_COLS; current_key_col++) {
+        uint8_t led_index = g_led_config.matrix_co[current_key_row][current_key_col];
+#        if (SN32F2XX_PWM_CONTROL == SOFTWARE_PWM)
         if (led_index >= SN32F2XX_LED_COUNT) continue;
-#    endif // SN32F2XX_PWM_CONTROL
+#        endif // SN32F2XX_PWM_CONTROL
         // Check if we need to enable RGB output
         if (led_state[led_index].b > 0) enable_pwm_output |= true;
         if (led_state[led_index].g > 0) enable_pwm_output |= true;
         if (led_state[led_index].r > 0) enable_pwm_output |= true;
         // Update matching RGB channel PWM configuration
-#    if (SN32F2XX_PWM_CONTROL == HARDWARE_PWM)
+#        if (SN32F2XX_PWM_CONTROL == HARDWARE_PWM)
         switch (current_row % SN32F2XX_RGB_MATRIX_ROW_CHANNELS) {
             case 0:
                 pwmEnableChannel(pwmp, chan_col_order[current_key_col], led_state[led_index].b);
@@ -407,7 +464,7 @@ static void update_pwm_channels(PWMDriver *pwmp) {
                 break;
             default:;
         }
-#    elif (SN32F2XX_PWM_CONTROL == SOFTWARE_PWM)
+#        elif (SN32F2XX_PWM_CONTROL == SOFTWARE_PWM)
         switch (current_row % SN32F2XX_RGB_MATRIX_ROW_CHANNELS) {
             case 0:
                 led_duty_cycle[current_key_col] = led_state[led_index].r;
@@ -420,8 +477,9 @@ static void update_pwm_channels(PWMDriver *pwmp) {
                 break;
             default:;
         }
-#    endif
+#        endif
     }
+#    endif // SN32F2XX_PWM_RESTART
     // Enable RGB output
     if (enable_pwm_output) {
 #    if (SN32F2XX_RGB_OUTPUT_ACTIVE_LEVEL == SN32F2XX_RGB_OUTPUT_ACTIVE_HIGH)
@@ -565,8 +623,10 @@ static void rgb_callback(PWMDriver *pwmp) {
     // Scan the rgb and key matrix
     if (EFLD1.state != FLASH_PGM) update_pwm_channels(pwmp);
     chSysLockFromISR();
+#if !((SN32F2XX_PWM_CONTROL == HARDWARE_PWM) && (SN32F2XX_PWM_DIRECTION == COL2ROW) && defined(SN32F2XX_PWM_RESTART))
     // Advance the timer to just before the wrap-around, that will start a new PWM cycle
     pwm_lld_change_counter(pwmp, UINT16_MAX);
+#endif
     // Enable the interrupt
     pwmEnablePeriodicNotificationI(pwmp);
     chSysUnlockFromISR();

@@ -9,7 +9,7 @@ and using it, in that order.
 3. [Get the source and the stock images](#3-get-the-source-and-the-stock-images)
 4. [Build or download](#4-build-or-download)
 5. [Flash](#5-flash)
-6. [Use it](#6-use-it): [Bluetooth](#61-bluetooth), [US-JIS](#62-us-jis), [VIA](#63-via)
+6. [Use it](#6-use-it): [Bluetooth](#61-bluetooth), [US-JIS](#62-us-jis), [VIA](#63-via), [Backlight](#64-backlight)
 7. [Go back to stock firmware](#7-go-back-to-stock-firmware)
 8. [Troubleshooting](#8-troubleshooting)
 9. [Tested and not tested](#9-tested-and-not-tested)
@@ -144,14 +144,22 @@ The key of the current profile shows the link state:
 | Connected | green for 3 s |
 | Disconnected | red for 3 s |
 
-The battery level lights 10 number keys green above 70 %, 6 keys yellow from
+Connected and disconnected show only within 30 s of start-up, the side
+switch, Fn+1/2/3 or pairing; a link that drops and comes back on its own
+(for example while the host sleeps) is not shown.
+
+After Fn+B the battery level lights 10 number keys green above 70 %, 6 keys yellow from
 30 % to 70 %, and 3 keys red below 30 %. Esc blinks red while the module
 reports low battery. These indicators only show while the backlight is on.
 
 On Bluetooth the backlight turns off after 5 minutes without input and comes
 back on the next key press. After 10 minutes without input the keyboard
-sleeps; any key wakes it, and the Bluetooth connection stays up. It does not sleep while a host uses it over USB or while a key is
-held down, and not at all on Optical boards.
+sleeps; any key wakes it, and the Bluetooth connection stays up. It does not
+sleep while a host uses it over USB, while a key is held down or while
+pairing or reconnecting, and not at all on Optical boards.
+
+The charging lamp (red while charging, green when full) is driven by the
+charger, not the firmware: it lights even with the side switch on Off.
 
 ### 6.2 US-JIS
 
@@ -192,6 +200,20 @@ US-JIS on/off/toggle (which only do something in `usjis_via`). The Lighting
 menu offers the RGB keycodes (`RM_TOGG` and so on). The Bluetooth profile keys
 are `BT_PRF1` to `BT_PRF3`; whether VIA's key picker offers them has not been
 checked, but the default keymap has them on Fn+1/2/3.
+
+VIA keeps the keys it was last given, so keys that a newer firmware adds to
+the keymap (such as Fn+Up/Down below) only appear once they are set in VIA.
+
+### 6.4 Backlight
+
+| Keys | Action |
+|---|---|
+| Light key (top right) | Next effect; with Shift, the previous one |
+| Fn + Light key | Backlight on/off |
+| Fn + Up / Fn + Down | Brighter / darker (also Fn+F6 / Fn+F5) |
+| Fn + Right / Fn + Left | More / less saturated colour |
+
+The settings are kept across power cycles.
 
 ## 7. Go back to stock firmware
 
@@ -248,6 +270,10 @@ Tested on an ANSI RGB K8 (stock USB ID `05AC:024F`):
   the connection stays up, and the Caps Lock LED stays in step with the Mac
   whether Caps Lock or another key wakes it. Once, in an earlier test of the
   same code, the LED stayed on after the Mac had turned Caps Lock off
+- Indicators with the backlight at brightness 0, with the same 20 s build:
+  US-JIS on/off on Tab, the profile key while pairing and on connecting,
+  the battery level after Fn+B, with no other key lit (also with Fn held);
+  pairing and battery reports the module sends on its own light nothing
 
 Checked in the emulator ([`sim/renode/`](sim/renode/), no keyboard needed;
 the Bluetooth module is a model there): the start-up sequence, connection,

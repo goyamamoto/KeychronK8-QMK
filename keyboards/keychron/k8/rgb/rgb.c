@@ -109,15 +109,43 @@ void iton_bt_entered_pairing(void) {
     set_bt_state(BT_PAIRING);
 }
 
+// Connected and disconnected show only as the outcome of something the user
+// did (starting up, the side switch, switching or pairing a profile); the
+// module also reports links that drop and come back on their own.
+#    define K8_BT_OUTCOME_TIME 30000
+
+static volatile bool     link_action;
+static volatile uint16_t link_action_timer;
+static volatile bool     link_outcome_shown;
+
+static void link_action_started(void) {
+    link_action       = true;
+    link_action_timer = timer_read();
+}
+
+static void set_link_outcome(bt_state_t state) {
+    link_outcome_shown = bt_state == BT_PAIRING || (link_action && timer_elapsed(link_action_timer) < K8_BT_OUTCOME_TIME);
+    set_bt_state(state);
+}
+
 void iton_bt_connection_successful(void) {
-    set_bt_state(BT_CONNECTED);
+    set_link_outcome(BT_CONNECTED);
 }
 
 void iton_bt_disconnected(void) {
-    set_bt_state(BT_DISCONNECTED);
+    set_link_outcome(BT_DISCONNECTED);
 }
 
+// The module also reports the level on its own; show it only as the answer
+// to Fn+B.
+static volatile bool     battery_asked;
+static volatile uint16_t battery_ask_timer;
+
 void iton_bt_battery_level(uint8_t level) {
+    if (!battery_asked || timer_elapsed(battery_ask_timer) > K8_BT_EVENT_TIME) {
+        return;
+    }
+    battery_asked = false;
     battery_level = level;
     battery_timer = timer_read();
 }
@@ -134,6 +162,7 @@ static bool     os_pending;
 static uint16_t os_timer;
 
 static void send_mode_to_module(void) {
+    link_action_started();
     if (bt_mode) {
         iton_bt_switch_profile(k8_config.profile);
         // The module ignores packets for a while after a profile switch.
@@ -153,6 +182,7 @@ static void send_os_to_module(void) {
 }
 
 static void select_profile(uint8_t profile) {
+    link_action_started();
     if (k8_config.profile != profile) {
         k8_config.profile = profile;
         eeconfig_update_kb(k8_config.raw);
@@ -246,6 +276,8 @@ bool process_record_kb(uint16_t keycode, keyrecord_t *record) {
             return false;
         case K8_BATT:
             if (bt_mode && record->event.pressed) {
+                battery_asked     = true;
+                battery_ask_timer = timer_read();
                 iton_bt_query_battery_level();
             }
             return false;
@@ -276,6 +308,12 @@ static k8_sleep_blocker_t sleep_blocker;
 
 static void sleep_task(void) {
     sleep_blocker = K8_SLEEP_OK;
+    // Not while pairing or reconnecting: the module's "connected" notice
+    // would arrive while the MCU sleeps and be lost, leaving the profile key
+    // blinking after the link is up.
+    if (bt_state == BT_PAIRING || bt_state == BT_CONNECTING) {
+        return;
+    }
     if (K8_BT_SLEEP_TIMEOUT && bt_mode && last_input_activity_elapsed() > K8_BT_SLEEP_TIMEOUT) {
         sleep_blocker = k8_sleep_blocker();
         if (sleep_blocker == K8_SLEEP_OK) {
@@ -326,6 +364,7 @@ void housekeeping_task_kb(void) {
 
     if (pair_hold_active && timer_elapsed(pair_hold_timer) > K8_BT_PAIR_HOLD_TIME) {
         pair_hold_active = false;
+        link_action_started();
         iton_bt_enter_pairing();
     }
 
@@ -396,12 +435,12 @@ bool rgb_matrix_indicators_advanced_kb(uint8_t led_min, uint8_t led_max) {
             }
             break;
         case BT_CONNECTED:
-            if (timer_elapsed(bt_state_timer) < K8_BT_EVENT_TIME) {
+            if (link_outcome_shown && timer_elapsed(bt_state_timer) < K8_BT_EVENT_TIME) {
                 set_color_in_range(profile_led, led_min, led_max, RGB_GREEN);
             }
             break;
         case BT_DISCONNECTED:
-            if (timer_elapsed(bt_state_timer) < K8_BT_EVENT_TIME) {
+            if (link_outcome_shown && timer_elapsed(bt_state_timer) < K8_BT_EVENT_TIME) {
                 set_color_in_range(profile_led, led_min, led_max, RGB_RED);
             }
             break;

@@ -37,6 +37,7 @@ unchanged:
 |---|---|
 | [`keyboards/keychron/k8/`](keyboards/keychron/k8/) | The K8: Bluetooth control, sleep, keymaps, US-JIS, flash tools, tests and the emulator, the guide |
 | [`drivers/bluetooth/iton_bt.c`](drivers/bluetooth/iton_bt.c), [`iton_bt.h`](drivers/bluetooth/iton_bt.h), [`bluetooth_drivers.c`](drivers/bluetooth/bluetooth_drivers.c) | Fixes to the Bluetooth module driver, an SN32 line interrupt that saves RAM, an opt-in debug log |
+| [`drivers/led/sn32f2xx.c`](drivers/led/sn32f2xx.c) | Opt-in `SN32F2XX_PWM_RESTART` (set for the K8): each LED row's duty cycles are loaded with the PWM timer stopped, every column stays driven (unlit ones held off), and the rows go dark before the columns are released for the key scan |
 | [`quantum/via.c`](quantum/via.c), [`via.h`](quantum/via.h) | VIA protocol 13 from upstream QMK (#26001), so VIA offers the RGB matrix keycodes |
 | [`.github/`](.github/) | This repository's workflows (build, host tests, emulator tests, CodeQL, releases) and Dependabot, in place of QMK's |
 | `readme.md` | This section |

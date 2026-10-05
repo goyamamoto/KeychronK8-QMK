@@ -124,6 +124,23 @@ def test_battery():
     k.close()
 
 
+def test_indicators_end():
+    k = connected_k8()
+    k.iton.BatteryLevel = 0x04
+    k.fn_tap(KEY_B)
+    k.run(0.5)
+    R.check("indicators: Fn+B lights the number row", k.u8("lit_before") & 1 == 1, str(k.u8("lit_before")))
+    k.run(3.0)
+    R.check("indicators: the battery level ends after 3 s", k.u8("lit_before") & 1 == 0, str(k.u8("lit_before")))
+    for _ in range(4):
+        k.tap(KEY_A)
+        k.run(15.0)
+    k.run(3.0)
+    # 16-bit millisecond timers wrap after 65.5 s; the level must not come back.
+    R.check("indicators: nothing comes back 65.5 s later", k.u8("lit_before") & 1 == 0, str(k.u8("lit_before")))
+    k.close()
+
+
 def test_pairing():
     k = K8()
     k.run(1.0)
@@ -312,6 +329,7 @@ test_six_keys()
 test_consumer()
 test_host_leds()
 test_battery()
+test_indicators_end()
 test_pairing()
 test_profile_switch()
 test_disconnect()

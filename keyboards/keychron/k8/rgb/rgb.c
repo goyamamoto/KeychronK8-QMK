@@ -86,19 +86,19 @@ static bool rgb_idle_off;
 
 #    ifdef USJIS_ENABLE
 static bool     usjis_show;
-static uint16_t usjis_show_timer;
+static uint32_t usjis_show_timer;
 #    endif
 
 // Written from the module's IRQ callbacks.
 static volatile bt_state_t bt_state;
-static volatile uint16_t   bt_state_timer;
+static volatile uint32_t   bt_state_timer;
 static volatile uint8_t    battery_level;
-static volatile uint16_t   battery_timer;
+static volatile uint32_t   battery_timer;
 static volatile bool       battery_low;
 
 static void set_bt_state(bt_state_t state) {
     bt_state       = state;
-    bt_state_timer = timer_read();
+    bt_state_timer = timer_read32();
 }
 
 void iton_bt_enters_connection_state(void) {
@@ -115,16 +115,16 @@ void iton_bt_entered_pairing(void) {
 #    define K8_BT_OUTCOME_TIME 30000
 
 static volatile bool     link_action;
-static volatile uint16_t link_action_timer;
+static volatile uint32_t link_action_timer;
 static volatile bool     link_outcome_shown;
 
 static void link_action_started(void) {
     link_action       = true;
-    link_action_timer = timer_read();
+    link_action_timer = timer_read32();
 }
 
 static void set_link_outcome(bt_state_t state) {
-    link_outcome_shown = bt_state == BT_PAIRING || (link_action && timer_elapsed(link_action_timer) < K8_BT_OUTCOME_TIME);
+    link_outcome_shown = bt_state == BT_PAIRING || (link_action && timer_elapsed32(link_action_timer) < K8_BT_OUTCOME_TIME);
     set_bt_state(state);
 }
 
@@ -139,15 +139,15 @@ void iton_bt_disconnected(void) {
 // The module also reports the level on its own; show it only as the answer
 // to Fn+B.
 static volatile bool     battery_asked;
-static volatile uint16_t battery_ask_timer;
+static volatile uint32_t battery_ask_timer;
 
 void iton_bt_battery_level(uint8_t level) {
-    if (!battery_asked || timer_elapsed(battery_ask_timer) > K8_BT_EVENT_TIME) {
+    if (!battery_asked || timer_elapsed32(battery_ask_timer) > K8_BT_EVENT_TIME) {
         return;
     }
     battery_asked = false;
     battery_level = level;
-    battery_timer = timer_read();
+    battery_timer = timer_read32();
 }
 
 void iton_bt_battery_voltage_low(void) {
@@ -199,7 +199,7 @@ void usjis_mode_applied(bool enabled) {
     k8_config.usjis = enabled;
     eeconfig_update_kb(k8_config.raw);
     usjis_show       = true;
-    usjis_show_timer = timer_read();
+    usjis_show_timer = timer_read32();
 }
 #    endif
 
@@ -277,7 +277,7 @@ bool process_record_kb(uint16_t keycode, keyrecord_t *record) {
         case K8_BATT:
             if (bt_mode && record->event.pressed) {
                 battery_asked     = true;
-                battery_ask_timer = timer_read();
+                battery_ask_timer = timer_read32();
                 iton_bt_query_battery_level();
             }
             return false;
@@ -351,6 +351,64 @@ static void debug_task(void) {
 }
 #    endif
 
+// Keys the indicators use, as groups.
+enum {
+    LIT_NUMBER_ROW = 1, // profile key, battery level
+    LIT_TAB        = 2, // US-JIS mode change
+    LIT_ESC        = 4, // low battery, sleep diagnostics
+};
+
+static bool showing(uint32_t since) {
+    return timer_elapsed32(since) < K8_BT_EVENT_TIME;
+}
+
+static bool link_outcome_showing(void) {
+    return link_outcome_shown && (bt_state == BT_CONNECTED || bt_state == BT_DISCONNECTED) && showing(bt_state_timer);
+}
+
+static bool battery_showing(void) {
+    return battery_level && showing(battery_timer);
+}
+
+static uint8_t indicators_lit(void) {
+    uint8_t lit = 0;
+#    ifdef USJIS_ENABLE
+    if (usjis_show && showing(usjis_show_timer)) lit |= LIT_TAB;
+#    endif
+    if (bt_mode) {
+        if (bt_state == BT_PAIRING || bt_state == BT_CONNECTING || link_outcome_showing() || battery_showing()) lit |= LIT_NUMBER_ROW;
+        if (battery_low) lit |= LIT_ESC;
+    }
+#    ifdef K8_SLEEP_DIAG
+    if (sleep_blocker != K8_SLEEP_OK) lit |= LIT_ESC;
+#    endif
+    return lit;
+}
+
+// Some effects (raindrops, pixel rain) repaint only a few keys at a time, so
+// a key an indicator lit kept its colour long after the indicator ended. When
+// one ends, its keys go dark briefly and every effect paints them afresh.
+#    define K8_INDICATOR_CLEAR_TIME 50
+
+static uint8_t  lit_before;
+static uint8_t  clearing;
+static uint32_t clearing_timer;
+
+static void indicator_clear_task(void) {
+    uint8_t lit   = indicators_lit();
+    uint8_t ended = lit_before & ~lit;
+    lit_before    = lit;
+    if (ended) {
+        clearing |= ended;
+        clearing_timer = timer_read32();
+    } else if (clearing && timer_elapsed32(clearing_timer) >= K8_INDICATOR_CLEAR_TIME) {
+        clearing = 0;
+    }
+#    ifdef USJIS_ENABLE
+    if (usjis_show && !(lit & LIT_TAB)) usjis_show = false;
+#    endif
+}
+
 void housekeeping_task_kb(void) {
     if (module_needs_mode && timer_elapsed(startup_timer) > K8_BT_STARTUP_DELAY) {
         module_needs_mode = false;
@@ -370,6 +428,7 @@ void housekeeping_task_kb(void) {
 
     rgb_idle_task();
     sleep_task();
+    indicator_clear_task();
 #    ifdef ITON_BT_DEBUG
     debug_task();
 #    endif
@@ -396,12 +455,22 @@ bool rgb_matrix_indicators_advanced_kb(uint8_t led_min, uint8_t led_max) {
         return false;
     }
 
+    if (clearing & LIT_NUMBER_ROW) {
+        for (uint8_t i = 0; i < 10; i++) {
+            set_color_in_range(number_key_led(i), led_min, led_max, RGB_OFF);
+        }
+    }
+    if (clearing & LIT_TAB) {
+        set_color_in_range(g_led_config.matrix_co[2][0], led_min, led_max, RGB_OFF);
+    }
+    if (clearing & LIT_ESC) {
+        set_color_in_range(g_led_config.matrix_co[0][0], led_min, led_max, RGB_OFF);
+    }
+
 #    ifdef USJIS_ENABLE
     // US-JIS mode change: Tab blinks green (on) or red (off).
-    if (usjis_show) {
-        if (timer_elapsed(usjis_show_timer) >= K8_BT_EVENT_TIME) {
-            usjis_show = false;
-        } else if (blink(250)) {
+    if (usjis_show && showing(usjis_show_timer)) {
+        if (blink(250)) {
             if (usjis_is_enabled()) {
                 set_color_in_range(g_led_config.matrix_co[2][0], led_min, led_max, RGB_GREEN);
             } else {
@@ -435,12 +504,12 @@ bool rgb_matrix_indicators_advanced_kb(uint8_t led_min, uint8_t led_max) {
             }
             break;
         case BT_CONNECTED:
-            if (link_outcome_shown && timer_elapsed(bt_state_timer) < K8_BT_EVENT_TIME) {
+            if (link_outcome_showing()) {
                 set_color_in_range(profile_led, led_min, led_max, RGB_GREEN);
             }
             break;
         case BT_DISCONNECTED:
-            if (link_outcome_shown && timer_elapsed(bt_state_timer) < K8_BT_EVENT_TIME) {
+            if (link_outcome_showing()) {
                 set_color_in_range(profile_led, led_min, led_max, RGB_RED);
             }
             break;
@@ -448,7 +517,7 @@ bool rgb_matrix_indicators_advanced_kb(uint8_t led_min, uint8_t led_max) {
             break;
     }
 
-    if (battery_level && timer_elapsed(battery_timer) < K8_BT_EVENT_TIME) {
+    if (battery_showing()) {
         uint8_t keys = battery_level == batt_above_70 ? 10 : battery_level == batt_between_30_70 ? 6 : 3;
         for (uint8_t i = 0; i < keys; i++) {
             switch (battery_level) {

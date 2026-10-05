@@ -274,6 +274,7 @@ Tested on an ANSI RGB K8 (stock USB ID `05AC:024F`):
   US-JIS on/off on Tab, the profile key while pairing and on connecting,
   the battery level after Fn+B, with no other key lit (also with Fn held);
   pairing and battery reports the module sends on its own light nothing
+- After Fn+B the battery level shows once and does not come back
 
 Checked in the emulator ([`sim/renode/`](sim/renode/), no keyboard needed;
 the Bluetooth module is a model there): the start-up sequence, connection,
